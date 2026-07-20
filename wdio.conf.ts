@@ -26,7 +26,7 @@ export const config: WebdriverIO.Config = {
     // of the config file unless it's absolute.
     //
     specs: [
-        // ToDo: define location for spec files here
+        './test/specs/**/*.ts'
     ],
     // Patterns to exclude.
     exclude: [
@@ -55,14 +55,14 @@ export const config: WebdriverIO.Config = {
     // https://saucelabs.com/platform/platform-configurator
     //
     capabilities: [{
-        // capabilities for local Appium web tests on an Android Emulator
         platformName: 'Android',
-        browserName: 'Chrome',
-        'appium:deviceName': 'Pixel 9 Pro',
-        'appium:platformVersion': '12.0',
         'appium:automationName': 'UiAutomator2',
-        "appium:app": path.join(process.cwd(), "app", "android", "app-development-release.apk")
-    }],
+        'appium:deviceName': 'Pixel 9 Pro',
+        'appium:udid': 'emulator-5554',
+        'appium:platformVersion': '16',
+        'appium:app': path.join(process.cwd(), "app", "android", "app-development-release.apk"),
+        'appium:autoGrantPermissions': true
+}],
 
     //
     // ===================
@@ -111,7 +111,14 @@ export const config: WebdriverIO.Config = {
     // Services take over a specific job you don't want to take care of. They enhance
     // your test setup with almost no effort. Unlike plugins, they don't add new
     // commands. Instead, they hook themselves up into the test process.
-    services: ['appium', 'visual'],
+    services: [['appium', {
+            args: {
+                address: '127.0.0.1',
+                port: '4723'
+            },
+            logPath: './logs'
+        }],
+        'visual'],
 
     // Framework you want to run your specs with.
     // The following are supported: Mocha, Jasmine, and Cucumber
