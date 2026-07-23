@@ -60,9 +60,17 @@ export const config: WebdriverIO.Config = {
         'appium:deviceName': 'Pixel 3',
         'appium:udid': 'emulator-5554',
         'appium:platformVersion': '16',
-        'appium:app': path.join(process.cwd(), "app", "android", "app-development-release.apk"),
-        'appium:autoGrantPermissions': true
-}],
+        'appium:app': path.join(
+            process.cwd(),
+            "app",
+            "android",
+            "app-development-release.apk"
+        ),
+        'appium:autoGrantPermissions': true,
+        'appium:systemPort': 8200,
+        'appium:unicodeKeyboard': true,
+        'appium:resetKeyboard': true
+    }],
 
     //
     // ===================

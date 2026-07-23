@@ -27,7 +27,7 @@ describe('Sample', () => {
 
         // Check if "SKIP" button exists (indicating "Sign in with ease" screen)
         const skipButton = await $('android=new UiSelector().text("SKIP")');
-        const emailInputText = await $('id=identifierId');
+        const emailInputText = await $('android=new UiSelector().resourceId("identifierId")');
 
         // Wait for either the SKIP button or the Email Input field to appear
         await browser.waitUntil(async () => {
@@ -64,9 +64,10 @@ describe('Sample', () => {
 
         // Wait for Email input field to appear (fallback/guarantee)
         await emailInputText.waitForDisplayed({ timeout: 15000 });
-
-        // Fill in email
-        await emailInputText.setValue("kushalbkambar@gmail.com");
+        await emailInputText.click();
+        await browser.pause(1000);
+        await emailInputText.clearValue();
+        await emailInputText.setValue("rohitbabarohitbaba2006@gmail.com");
         console.log("Email filled");
 
         // Click NEXT button to submit email
@@ -74,5 +75,60 @@ describe('Sample', () => {
         await nextButton2.waitForDisplayed({ timeout: 20000 });
         await nextButton2.click();
         console.log("NEXT clicked after entering email");
+
+        // Wait for Password input field to appear (using XPath with @password="true" to avoid matching the email field)
+        const passwordInput = await $('//android.widget.EditText[@password="true"]');
+        await passwordInput.waitForDisplayed({ timeout: 20000 });
+        await passwordInput.click();
+        await browser.pause(1000);
+        await passwordInput.clearValue();
+        await passwordInput.setValue("Rohit@2007");
+        console.log("Password filled");
+
+        // Click NEXT button to submit password
+        const nextButton3 = await $('android=new UiSelector().text("NEXT")');
+        await nextButton3.waitForDisplayed({ timeout: 15000 });
+        await nextButton3.click();
+        console.log("NEXT clicked after entering password");
+
+        // Wait for either the "Use another phone or computer..." option or "I agree" button to appear
+        const useAnotherOption = await $('android=new UiSelector().description("Use another phone or computer to finish signing in")');
+        const iAgreeButton = await $('android=new UiSelector().text("I agree")');
+
+        console.log("Waiting for verification option or 'I agree' button...");
+        await browser.waitUntil(async () => {
+            return (await useAnotherOption.isDisplayed()) || (await iAgreeButton.isDisplayed());
+        }, {
+            timeout: 30000,
+            timeoutMsg: "Neither 'Use another phone...' option nor 'I agree' button appeared after password submission"
+        });
+
+        if (await useAnotherOption.isDisplayed()) {
+            console.log("'Use another phone or computer to finish signing in' option detected. Clicking it...");
+            await useAnotherOption.click();
+        } else {
+            console.log("Direct 'I agree' screen detected (skipped/bypassed verification screen).");
+        }
+
+        // Wait for the "I agree" button to appear and click it
+        console.log("Waiting for 'I agree' button to be displayed...");
+        await iAgreeButton.waitForDisplayed({ timeout: 120000 });
+        await iAgreeButton.click();
+        console.log("Clicked 'I agree' button");
+
+        // Wait for the "Skip" button on the "Set a home address" screen (appears after 10-15 seconds of loading)
+        const skipHomeAddressButton = await $('android=new UiSelector().text("Skip")');
+        await skipHomeAddressButton.waitForDisplayed({ timeout: 30000 });
+        await skipHomeAddressButton.click();
+        console.log("Clicked 'Skip' on the Set a home address screen");
+
+        // Wait for the "Don't back up" button on the "Back up your device" screen
+        const dontBackupButton = await $('android=new UiSelector().text("Don\'t back up")');
+        await dontBackupButton.waitForDisplayed({ timeout: 20000 });
+        await dontBackupButton.click();
+        console.log("Clicked 'Don\'t back up' button");
+
+        // Brief pause to observe success/next screen
+        await browser.pause(5000);
     });
 });
