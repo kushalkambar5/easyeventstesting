@@ -57,7 +57,7 @@ export const config: WebdriverIO.Config = {
     capabilities: [{
         platformName: 'Android',
         'appium:automationName': 'UiAutomator2',
-        'appium:deviceName': 'Pixel 9 Pro',
+        'appium:deviceName': 'Pixel 3',
         'appium:udid': 'emulator-5554',
         'appium:platformVersion': '16',
         'appium:app': path.join(process.cwd(), "app", "android", "app-development-release.apk"),
