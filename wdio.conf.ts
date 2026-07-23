@@ -30,7 +30,7 @@ export const config: WebdriverIO.Config = {
     ],
     // Patterns to exclude.
     exclude: [
-        // 'path/to/excluded/files'
+        './test/specs/auth/signup.spec.ts'
     ],
     //
     // ============

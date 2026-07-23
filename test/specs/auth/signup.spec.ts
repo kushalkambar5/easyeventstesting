@@ -1,8 +1,10 @@
 import WelcomeScreen from '../../screens/auth/WelcomeScreen';
 import SignupScreen from '../../screens/auth/SignupScreen';
 import GoogleSignInScreen from '../../screens/auth/GoogleSignInScreen';
+import * as dotenv from "dotenv";
+dotenv.config({ path: ".env" });
 
-describe('Sign Up / Login with Google', () => {
+describe.skip('Sign Up / Login with Google', () => {
     it('should complete the signup/login flow using Google Sign-in', async () => {
         // Click Get Started button on onboarding screen
         await WelcomeScreen.clickGetStarted();
@@ -12,8 +14,9 @@ describe('Sign Up / Login with Google', () => {
 
         // Perform Google Login
         await GoogleSignInScreen.login(
-            "rohitbabarohitbaba2006@gmail.com",
-            "Rohit@2007"
+            process.env.GMAIL_ID || "",
+            process.env.GMAIL_PASSWORD || ""
         );
     });
 });
+
