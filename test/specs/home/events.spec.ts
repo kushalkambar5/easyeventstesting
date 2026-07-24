@@ -7,59 +7,134 @@ import * as dotenv from 'dotenv';
 dotenv.config({ path: '.env' });
 
 async function loginIfNecessary() {
-    console.log("Checking if onboarding or welcome screen is active...");
-    const getStartedBtn = $('android.widget.Button');
-    const isWelcome = await getStartedBtn.waitForDisplayed({ timeout: 5000 }).catch(() => false);
-    if (!isWelcome) {
-        console.log("Welcome screen not detected. Assuming already logged in.");
+    console.log("Detecting if we are logged in or on the welcome screen...");
+    const getStartedBtn = $('android=new UiSelector().text("GET STARTED")');
+    const homeHeader = $('android=new UiSelector().text("Easy Events")');
+    const googleTextSelector = $('android=new UiSelector().textContains("google")');
+
+    let state = "";
+    try {
+        await browser.waitUntil(async () => {
+            if (await getStartedBtn.isDisplayed()) {
+                state = "welcome";
+                return true;
+            }
+            if (await homeHeader.isDisplayed()) {
+                state = "home";
+                return true;
+            }
+            return false;
+        }, {
+            timeout: 25000,
+            timeoutMsg: "Neither Welcome screen nor Home screen appeared within 25 seconds."
+        });
+    } catch (err: any) {
+        console.log(`State detection timed out: ${err.message}. Assuming welcome screen...`);
+        state = "welcome";
+    }
+
+    console.log(`Detected state: ${state}`);
+    if (state === "home") {
+        console.log("Already logged in and on Home screen.");
         return;
     }
 
-    console.log("Welcome screen detected. Clicking GET STARTED...");
+    console.log("On Welcome screen. Clicking GET STARTED...");
     await WelcomeScreen.clickGetStarted();
 
-    // Check if the Signup screen is displayed
-    const googleTextSelector = $('android=new UiSelector().textContains("google")');
-    const isSignupScreen = await googleTextSelector.waitForDisplayed({ timeout: 5000 }).catch(() => false);
-
-    if (isSignupScreen) {
-        console.log("Signup screen detected. Clicking Signin with google...");
-        await SignupScreen.clickSignInWithGoogle();
-    } else {
-        console.log("Signup screen was bypassed. Checking next state...");
+    // Check if we went to Home Screen directly or to the Signup screen
+    let afterWelcomeState = "";
+    try {
+        await browser.waitUntil(async () => {
+            if (await homeHeader.isDisplayed()) {
+                afterWelcomeState = "home";
+                return true;
+            }
+            if (await googleTextSelector.isDisplayed()) {
+                afterWelcomeState = "signup";
+                return true;
+            }
+            return false;
+        }, {
+            timeout: 15000,
+            timeoutMsg: "Neither Home screen nor Signup screen appeared after clicking GET STARTED."
+        });
+    } catch (err: any) {
+        console.log(`Timeout waiting for screen after GET STARTED: ${err.message}. Assuming signup...`);
+        afterWelcomeState = "signup";
     }
+
+    console.log(`State after clicking GET STARTED: ${afterWelcomeState}`);
+    if (afterWelcomeState === "home") {
+        console.log("Navigated to Home screen directly after GET STARTED.");
+        return;
+    }
+
+    console.log("Signup screen detected. Clicking Signin with google...");
+    await SignupScreen.clickSignInWithGoogle();
 
     const gmailId = process.env.GMAIL_ID || "";
     const accountSelector = $(`android=new UiSelector().text("${gmailId}")`);
     const phoneInputSelector = $('//android.widget.EditText[@resource-id="RNE__Input__text-input" and @text="Enter phone number"]');
 
-    console.log("Waiting for Google account chooser or phone input screen...");
+    console.log("Waiting for Google account chooser, phone input screen, or Home screen...");
+    let screenState = "";
     await browser.waitUntil(async () => {
-        return (await accountSelector.isDisplayed()) || (await phoneInputSelector.isDisplayed());
+        if (await accountSelector.isDisplayed()) {
+            screenState = "chooser";
+            return true;
+        }
+        if (await phoneInputSelector.isDisplayed()) {
+            screenState = "phone";
+            return true;
+        }
+        if (await homeHeader.isDisplayed()) {
+            screenState = "home";
+            return true;
+        }
+        return false;
     }, {
-        timeout: 20000,
-        timeoutMsg: 'Neither Google account chooser nor phone input screen appeared'
+        timeout: 25000,
+        timeoutMsg: 'Neither Google account chooser, phone input screen, nor Home screen appeared'
     });
 
-    if (await accountSelector.isDisplayed()) {
+    console.log(`Detected screen state after signup: ${screenState}`);
+    if (screenState === "home") {
+        console.log("Navigated to Home screen directly.");
+        return;
+    }
+
+    if (screenState === "chooser") {
         console.log(`Google account chooser detected. Clicking on account: ${gmailId}`);
         await accountSelector.click();
+        
+        // Wait to see if we land on Home screen or Phone input screen
+        console.log("Waiting for Home screen or Phone input screen...");
+        let afterChooserState = "";
+        await browser.waitUntil(async () => {
+            if (await homeHeader.isDisplayed()) {
+                afterChooserState = "home";
+                return true;
+            }
+            if (await phoneInputSelector.isDisplayed()) {
+                afterChooserState = "phone";
+                return true;
+            }
+            return false;
+        }, {
+            timeout: 20000,
+            timeoutMsg: "Neither Home screen nor Phone input screen appeared after account selection."
+        });
+
+        if (afterChooserState === "home") {
+            console.log("Navigated to Home screen after account selection.");
+            return;
+        }
     }
 
-    // Check if onboarding phone input screen appears
-    console.log("Checking if onboarding (phone input) screen appears...");
-    let isOnboarding = false;
-    try {
-        await phoneInputSelector.waitForDisplayed({ timeout: 10000 });
-        isOnboarding = true;
-    } catch (e) {
-        console.log("Phone input/onboarding screen did not appear.");
-    }
-
-    if (isOnboarding) {
-        console.log("Entering phone number and requesting OTP...");
-        await OnboardingScreen.loginWithPhone();
-    }
+    // Entering phone number and requesting OTP
+    console.log("Entering phone number and requesting OTP...");
+    await OnboardingScreen.loginWithPhone();
 }
 
 describe('Home Screen - Events Post Interaction', function () {
@@ -107,5 +182,44 @@ describe('Home Screen - Events Post Interaction', function () {
         console.log("Verifying that share button disappears...");
         await shareBtn.waitForDisplayed({ reverse: true, timeout: 10000 });
         expect(await shareBtn.isDisplayed()).toBe(false);
+    });
+
+    it('should open share sheet on clicking share and dismiss everything on tapping back', async function () {
+        this.timeout(240000);
+
+        // Click the three dots button
+        await HomeScreen.clickThreeDots();
+        await browser.pause(2000);
+
+        // Click share button
+        await HomeScreen.clickShare();
+        await browser.pause(3000); // Wait for the system intent resolver/share sheet to appear
+
+        // Verify share sheet preview text is displayed
+        console.log("Verifying system share sheet preview text...");
+        const shareSheetText = await HomeScreen.shareSheetPreviewText;
+        await shareSheetText.waitForDisplayed({ timeout: 15000 });
+        expect(await shareSheetText.isDisplayed()).toBe(true);
+
+        // Assert that text contains the expected message
+        const textContent = await shareSheetText.getText();
+        console.log(`Share sheet text contents: "${textContent}"`);
+        expect(textContent).toContain("Take a look at the memorable moments from Engagement, beautifully captured by");
+
+        // Click hardware back button to close share sheet and overlay
+        console.log("Tapping Android back button...");
+        await browser.back();
+        await browser.pause(3000); // Give it some time to process transitions
+
+        // Verify both share and cancel button are not on the screen anymore
+        console.log("Checking that both share and cancel buttons have disappeared...");
+        const shareBtn = await HomeScreen.shareButton;
+        const cancelBtn = await HomeScreen.cancelButton;
+
+        await shareBtn.waitForDisplayed({ reverse: true, timeout: 5000 }).catch(() => {});
+        await cancelBtn.waitForDisplayed({ reverse: true, timeout: 5000 }).catch(() => {});
+
+        expect(await shareBtn.isDisplayed().catch(() => false)).toBe(false);
+        expect(await cancelBtn.isDisplayed().catch(() => false)).toBe(false);
     });
 });

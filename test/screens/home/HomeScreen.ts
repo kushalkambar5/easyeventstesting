@@ -19,14 +19,21 @@ class HomeScreen extends BaseScreen {
      * The share button on the overlay menu.
      */
     public get shareButton() {
-        return $('//android.view.ViewGroup[@index="4"]');
+        return $('//android.view.ViewGroup[android.widget.TextView[@text="Share"]]');
     }
 
     /**
-     * The cancel button on the overlay menu.
+     * The cancel button on the overlay menu (close icon).
      */
     public get cancelButton() {
-        return $('//android.widget.TextView[@index="0" or contains(@text, "Cancel") or contains(@text, "cancel") or contains(@text, "CANCEL")]');
+        return $('//android.view.ViewGroup[@content-desc="Close menu"]/android.widget.TextView');
+    }
+
+    /**
+     * The system share sheet content preview text.
+     */
+    public get shareSheetPreviewText() {
+        return $('//android.widget.TextView[@resource-id="com.android.intentresolver:id/content_preview_text"]');
     }
 
     /**
@@ -35,6 +42,16 @@ class HomeScreen extends BaseScreen {
     public async clickThreeDots() {
         console.log("Waiting for and clicking the 3-dots button on the first post card...");
         const btn = await this.threeDotsButton;
+        await btn.waitForDisplayed({ timeout: 15000 });
+        await btn.click();
+    }
+
+    /**
+     * Clicks the share button on the overlay menu.
+     */
+    public async clickShare() {
+        console.log("Waiting for and clicking the share button...");
+        const btn = await this.shareButton;
         await btn.waitForDisplayed({ timeout: 15000 });
         await btn.click();
     }
