@@ -47,3 +47,6 @@ allure-results/
 allure-report/
 errorShots/
 .wdio-*.log
+screenshots/
+CONOUT$
+

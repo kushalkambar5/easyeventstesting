@@ -9,6 +9,7 @@ class SignupScreen extends BaseScreen {
         const btn = await this.signinWithGoogleButton;
         await btn.waitForDisplayed({ timeout: 10000 });
         await btn.click();
+        await browser.pause(3000);
     }
 }
 
