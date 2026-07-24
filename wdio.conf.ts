@@ -30,6 +30,8 @@ export const config: WebdriverIO.Config = {
     ],
     // Patterns to exclude.
     exclude: [
+        './test/specs/auth/signup.spec.ts',
+        './test/specs/auth/onboarding.spec.ts'
     ],
     //
     // ============

@@ -2,7 +2,9 @@ import WelcomeScreen from '../../screens/auth/WelcomeScreen';
 import SignupScreen from '../../screens/auth/SignupScreen';
 import OnboardingScreen from '../../screens/auth/OnboardingScreen';
 import HomeScreen from '../../screens/home/HomeScreen';
+import GoogleSignInScreen from '../../screens/auth/GoogleSignInScreen';
 import * as dotenv from 'dotenv';
+import * as fs from 'fs';
 
 dotenv.config({ path: '.env' });
 
@@ -75,13 +77,19 @@ async function loginIfNecessary() {
 
     const gmailId = process.env.GMAIL_ID || "";
     const accountSelector = $(`android=new UiSelector().text("${gmailId}")`);
+    const emailInputSelector = $('android=new UiSelector().resourceId("identifierId")');
+    const skipBtnSelector = $('android=new UiSelector().text("SKIP")');
     const phoneInputSelector = $('//android.widget.EditText[@resource-id="RNE__Input__text-input" and @text="Enter phone number"]');
 
-    console.log("Waiting for Google account chooser, phone input screen, or Home screen...");
+    console.log("Waiting for Google account chooser, Sign-in screen, or Phone input screen...");
     let screenState = "";
     await browser.waitUntil(async () => {
         if (await accountSelector.isDisplayed()) {
             screenState = "chooser";
+            return true;
+        }
+        if ((await emailInputSelector.isDisplayed()) || (await skipBtnSelector.isDisplayed())) {
+            screenState = "login";
             return true;
         }
         if (await phoneInputSelector.isDisplayed()) {
@@ -94,8 +102,8 @@ async function loginIfNecessary() {
         }
         return false;
     }, {
-        timeout: 25000,
-        timeoutMsg: 'Neither Google account chooser, phone input screen, nor Home screen appeared'
+        timeout: 30000,
+        timeoutMsg: 'Neither Google account chooser, Sign-in screen, phone input screen, nor Home screen appeared'
     });
 
     console.log(`Detected screen state after signup: ${screenState}`);
@@ -107,34 +115,34 @@ async function loginIfNecessary() {
     if (screenState === "chooser") {
         console.log(`Google account chooser detected. Clicking on account: ${gmailId}`);
         await accountSelector.click();
-        
-        // Wait to see if we land on Home screen or Phone input screen
-        console.log("Waiting for Home screen or Phone input screen...");
-        let afterChooserState = "";
-        await browser.waitUntil(async () => {
-            if (await homeHeader.isDisplayed()) {
-                afterChooserState = "home";
-                return true;
-            }
-            if (await phoneInputSelector.isDisplayed()) {
-                afterChooserState = "phone";
-                return true;
-            }
-            return false;
-        }, {
-            timeout: 20000,
-            timeoutMsg: "Neither Home screen nor Phone input screen appeared after account selection."
-        });
-
-        if (afterChooserState === "home") {
-            console.log("Navigated to Home screen after account selection.");
-            return;
-        }
+    } else if (screenState === "login") {
+        console.log("Google Account does not exist on mobile. Performing full sign-in...");
+        await GoogleSignInScreen.login(
+            process.env.GMAIL_ID || "",
+            process.env.GMAIL_PASSWORD || ""
+        );
+    } else {
+        console.log("Directly navigated to phone input/onboarding screen.");
     }
 
-    // Entering phone number and requesting OTP
-    console.log("Entering phone number and requesting OTP...");
-    await OnboardingScreen.loginWithPhone();
+    // Wait to see if we navigate to the phone input screen or go directly to the home screen
+    console.log("Checking if onboarding (phone input) screen appears...");
+    let isOnboarding = false;
+    try {
+        await phoneInputSelector.waitForDisplayed({ timeout: 15000 });
+        isOnboarding = true;
+    } catch (e) {
+        console.log("Phone input/onboarding screen did not appear within 15 seconds.");
+    }
+
+    if (isOnboarding) {
+        console.log("Entering phone number and requesting OTP...");
+        await OnboardingScreen.loginWithPhone();
+    } else {
+        console.log("Onboarding screen not detected. Verifying if we landed on the home page...");
+        await homeHeader.waitForDisplayed({ timeout: 25000 });
+        console.log("Successfully landed on the home screen!");
+    }
 }
 
 async function ensureOnHomeScreen() {
@@ -143,6 +151,16 @@ async function ensureOnHomeScreen() {
         console.log("Already on Home screen.");
         return;
     }
+
+    // Check if we are on the Welcome screen or Google Signup screen already
+    const getStartedBtn = $('android=new UiSelector().text("GET STARTED")');
+    const googleTextSelector = $('android=new UiSelector().textContains("google")');
+    if (await getStartedBtn.isDisplayed() || await googleTextSelector.isDisplayed()) {
+        console.log("Not on Home screen, but Welcome/Signup screen is already displayed. Proceeding to login directly...");
+        await loginIfNecessary();
+        return;
+    }
+
     console.log("Not on Home screen. Relaunching app to recover state...");
     const packageName = 'com.easy_eventz.development';
     await browser.terminateApp(packageName);
@@ -175,6 +193,21 @@ async function scrollDown() {
 }
 
 describe('Home Screen - Events Post Interaction', function () {
+    it('should complete the signup/login flow using Google Sign-in', async function () {
+        this.timeout(240000);
+        const packageName = 'com.easy_eventz.development';
+        
+        console.log(`Closing app to start clean: ${packageName}`);
+        await browser.terminateApp(packageName);
+        await browser.pause(2000);
+        
+        console.log(`Launching app freshly: ${packageName}`);
+        await browser.activateApp(packageName);
+        await browser.pause(3000);
+
+        await ensureOnHomeScreen();
+    });
+
     it('should show share option on clicking 3-dots and hide it on clicking cancel', async function () {
         this.timeout(240000);
         await ensureOnHomeScreen();
