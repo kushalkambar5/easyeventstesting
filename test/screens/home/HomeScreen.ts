@@ -23,6 +23,20 @@ class HomeScreen extends BaseScreen {
     }
 
     /**
+     * The like button on the first post.
+     */
+    public get likeButton() {
+        return $('//android.widget.Button[@content-desc="Like" or @content-desc="Unlike"]');
+    }
+
+    /**
+     * The post share button next to the like button.
+     */
+    public get postShareButton() {
+        return $('//android.widget.Button[@content-desc="Share"]');
+    }
+
+    /**
      * The cancel button on the overlay menu (close icon).
      */
     public get cancelButton() {

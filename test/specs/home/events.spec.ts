@@ -137,22 +137,47 @@ async function loginIfNecessary() {
     await OnboardingScreen.loginWithPhone();
 }
 
+async function ensureOnHomeScreen() {
+    const homeHeader = $('android=new UiSelector().text("Easy Events")');
+    if (await homeHeader.isDisplayed()) {
+        console.log("Already on Home screen.");
+        return;
+    }
+    console.log("Not on Home screen. Relaunching app to recover state...");
+    const packageName = 'com.easy_eventz.development';
+    await browser.terminateApp(packageName);
+    await browser.pause(2000);
+    await browser.activateApp(packageName);
+    await browser.pause(5000);
+    await loginIfNecessary();
+}
+
+async function scrollDown() {
+    console.log("Scrolling down...");
+    try {
+        const scrollableElement = $('android=new UiSelector().scrollable(true)');
+        await scrollableElement.waitForDisplayed({ timeout: 10000 });
+        await browser.execute('mobile: scroll', {
+            elementId: await scrollableElement.elementId,
+            direction: 'down'
+        });
+    } catch (err: any) {
+        console.log(`mobile:scroll failed: ${err.message}. Using pointer swipe...`);
+        // Swipe up to scroll down
+        await browser.action('pointer')
+            .move({ duration: 0, x: 500, y: 1500 })
+            .down({ button: 0 })
+            .move({ duration: 1000, x: 500, y: 500 })
+            .up({ button: 0 })
+            .perform();
+    }
+    await browser.pause(2000);
+}
+
 describe('Home Screen - Events Post Interaction', function () {
     it('should show share option on clicking 3-dots and hide it on clicking cancel', async function () {
         this.timeout(240000);
-
-        const packageName = 'com.easy_eventz.development';
-        
-        console.log(`Closing app: ${packageName}`);
-        await browser.terminateApp(packageName);
-        await browser.pause(2000);
-        
-        console.log(`Launching app freshly: ${packageName}`);
-        await browser.activateApp(packageName);
-        await browser.pause(5000);
-
-        // Run login flow if necessary
-        await loginIfNecessary();
+        await ensureOnHomeScreen();
 
         // Verify first post card is displayed
         console.log("Checking if first post card is displayed...");
@@ -222,4 +247,111 @@ describe('Home Screen - Events Post Interaction', function () {
         expect(await shareBtn.isDisplayed().catch(() => false)).toBe(false);
         expect(await cancelBtn.isDisplayed().catch(() => false)).toBe(false);
     });
+
+    it('should increase like count on click and decrease on click again', async function () {
+        this.timeout(240000);
+        await ensureOnHomeScreen();
+        await scrollDown();
+
+        // Verify first post card is displayed
+        console.log("Checking if first post card is displayed...");
+        const postCard = await HomeScreen.firstPostCard;
+        await postCard.waitForDisplayed({ timeout: 20000 });
+        expect(await postCard.isDisplayed()).toBe(true);
+
+        const likeBtn = await HomeScreen.likeButton;
+        await likeBtn.waitForDisplayed({ timeout: 20000 });
+
+        // Helper to extract count from TextView children of likeBtn
+        const getLikeCount = async (btn: WebdriverIO.Element) => {
+            const textViews = await btn.$$('android.widget.TextView');
+            for (const tv of textViews) {
+                const text = await tv.getText();
+                const count = parseInt(text.replace(/\D/g, ''), 10);
+                if (!isNaN(count)) {
+                    return count;
+                }
+            }
+            return 0;
+        };
+
+        // If initially liked, click to unlike so we start clean
+        const initialDesc = await likeBtn.getAttribute('content-desc');
+        console.log(`Initial button content-desc: "${initialDesc}"`);
+        if (initialDesc === 'Unlike') {
+            console.log("Post is already liked. Clicking to unlike first...");
+            await likeBtn.click();
+            await browser.pause(2000);
+        }
+
+        // Get initial count (unliked state)
+        const initialCount = await getLikeCount(likeBtn);
+        console.log(`Initial unliked count: ${initialCount}`);
+
+        // Click to like
+        console.log("Clicking like button to increase count...");
+        await likeBtn.click();
+        await browser.pause(2000);
+
+        // Verify count increased
+        const likedCount = await getLikeCount(likeBtn);
+        console.log(`Liked count: ${likedCount}`);
+        expect(likedCount).toBe(initialCount + 1);
+
+        // Verify content-desc is now Unlike
+        expect(await likeBtn.getAttribute('content-desc')).toBe('Unlike');
+
+        // Click to unlike
+        console.log("Clicking like button again to decrease count...");
+        await likeBtn.click();
+        await browser.pause(2000);
+
+        // Verify count decreased back
+        const unlikedCount = await getLikeCount(likeBtn);
+        console.log(`Unliked count: ${unlikedCount}`);
+        expect(unlikedCount).toBe(initialCount);
+
+        // Verify content-desc is now Like
+        expect(await likeBtn.getAttribute('content-desc')).toBe('Like');
+    });
+
+    it('should open share sheet on clicking the post share button and dismiss on tapping back', async function () {
+        this.timeout(240000);
+        await ensureOnHomeScreen();
+        await scrollDown();
+
+        const postShareBtn = await HomeScreen.postShareButton;
+        try {
+            await postShareBtn.waitForDisplayed({ timeout: 20000 });
+        } catch (err) {
+            console.log("Failed to find post Share button. Dumping page source:");
+            console.log(await browser.getPageSource());
+            throw err;
+        }
+        
+        // Click the post share button
+        console.log("Clicking post share button...");
+        await postShareBtn.click();
+        await browser.pause(3000); // Wait for system share sheet
+
+        // Verify share sheet preview text is displayed
+        console.log("Verifying system share sheet preview text from post share...");
+        const shareSheetText = await HomeScreen.shareSheetPreviewText;
+        await shareSheetText.waitForDisplayed({ timeout: 15000 });
+        expect(await shareSheetText.isDisplayed()).toBe(true);
+
+        // Assert that text contains the expected message
+        const textContent = await shareSheetText.getText();
+        console.log(`Share sheet text contents: "${textContent}"`);
+        expect(textContent).toContain("Take a look at the memorable moments from Engagement, beautifully captured by");
+
+        // Click hardware back button to close share sheet
+        console.log("Tapping Android back button to close share sheet...");
+        await browser.back();
+        await browser.pause(3000); // Give it some time to process transitions
+
+        // Verify that the share sheet is no longer displayed
+        expect(await shareSheetText.isDisplayed().catch(() => false)).toBe(false);
+    });
 });
+
